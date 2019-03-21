@@ -42,7 +42,7 @@ def cifar_data():
 
 
 data = cifar_data()
-batch_size = 100
+batch_size = 32
 data_loader = torch.utils.data.DataLoader(data, batch_size=batch_size, shuffle=True)
 num_batches = len(data_loader)
 
@@ -53,13 +53,13 @@ num_batches = len(data_loader)
 
 
 class DiscriminativeNet(torch.nn.Module):
-    
+
     def __init__(self):
         super(DiscriminativeNet, self).__init__()
-        
+
         self.conv1 = nn.Sequential(
             nn.Conv2d(
-                in_channels=3, out_channels=128, kernel_size=4, 
+                in_channels=3, out_channels=128, kernel_size=4,
                 stride=2, padding=1, bias=False
             ),
             nn.LeakyReLU(0.2, inplace=True)
@@ -109,12 +109,12 @@ class DiscriminativeNet(torch.nn.Module):
 
 
 class GenerativeNet(torch.nn.Module):
-    
+
     def __init__(self):
         super(GenerativeNet, self).__init__()
-        
+
         self.linear = torch.nn.Linear(100, 1024*4*4)
-        
+
         self.conv1 = nn.Sequential(
             nn.ConvTranspose2d(
                 in_channels=1024, out_channels=512, kernel_size=4,
@@ -158,7 +158,7 @@ class GenerativeNet(torch.nn.Module):
         x = self.conv4(x)
         # Apply Tanh
         return self.out(x)
-    
+
 # Noise
 def noise(size):
     n = Variable(torch.randn(size, 100))
@@ -189,6 +189,7 @@ discriminator.apply(init_weights)
 if torch.cuda.is_available():
     generator.cuda()
     discriminator.cuda()
+    print("=========== CUDA is available!!!")
 
 
 # ## Optimization
@@ -217,16 +218,16 @@ def real_data_target(size):
     Tensor containing ones, with shape = size
     '''
     data = Variable(torch.ones(size, 1))
-    if torch.cuda.is_available(): return data.cuda()
-    return data
+    # if torch.cuda.is_available(): return data.cuda()
+    return data.cuda()
 
 def fake_data_target(size):
     '''
     Tensor containing zeros, with shape = size
     '''
     data = Variable(torch.zeros(size, 1))
-    if torch.cuda.is_available(): return data.cuda()
-    return data
+    # if torch.cuda.is_available(): return data.cuda()
+    return data.cuda()
 
 
 # In[11]:
@@ -235,7 +236,7 @@ def fake_data_target(size):
 def train_discriminator(optimizer, real_data, fake_data):
     # Reset gradients
     optimizer.zero_grad()
-    
+
     # 1.1 Train on Real Data
     prediction_real = discriminator(real_data)
     # Calculate error and backpropagate
@@ -247,10 +248,10 @@ def train_discriminator(optimizer, real_data, fake_data):
     # Calculate error and backpropagate
     error_fake = loss(prediction_fake, fake_data_target(real_data.size(0)))
     error_fake.backward()
-    
+
     # 1.3 Update weights with gradients
     optimizer.step()
-    
+
     # Return error
     return error_real + error_fake, prediction_real, prediction_fake
 
@@ -287,14 +288,15 @@ logger = Logger(model_name='DCGAN', data_name='CIFAR10')
 
 for epoch in range(num_epochs):
     for n_batch, (real_batch,_) in enumerate(data_loader):
-        
+        print("epoch = {}, n_batch = {}".format(epoch, n_batch))
+
         # 1. Train Discriminator
-        real_data = Variable(real_batch)
-        if torch.cuda.is_available(): real_data = real_data.cuda()
+        real_data = Variable(real_batch).cuda()
+        # if torch.cuda.is_available(): real_data = real_data.cuda()
         # Generate fake data
         fake_data = generator(noise(real_data.size(0))).detach()
         # Train D
-        d_error, d_pred_real, d_pred_fake = train_discriminator(d_optimizer, 
+        d_error, d_pred_real, d_pred_fake = train_discriminator(d_optimizer,
                                                                 real_data, fake_data)
 
         # 2. Train Generator
@@ -304,7 +306,7 @@ for epoch in range(num_epochs):
         g_error = train_generator(g_optimizer, fake_data)
         # Log error
         logger.log(d_error, g_error, epoch, n_batch, num_batches)
-        
+
         # Display Progress
         if (n_batch) % 100 == 0:
             display.clear_output(True)
@@ -318,4 +320,3 @@ for epoch in range(num_epochs):
             )
         # Model Checkpoints
         logger.save_models(generator, discriminator, epoch)
-
